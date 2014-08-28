@@ -1,0 +1,117 @@
+<html><head><title>WebSocket</title>
+<style type="text/css">
+html,body {
+	font:normal 0.9em arial,helvetica;
+}
+#users > div:not(:first-child) {
+	display:inline;
+	width:100%; 
+	border:1px solid #7F9DB9; 
+	margin:0 2 0 0;
+}
+#chatroom {
+	display:none;
+}
+#log {
+	width:600px; 
+	height:300px; 
+	border:1px solid #7F9DB9; 
+	margin:5 0 0 0;
+	overflow:auto;
+}
+#msg {
+	width:400px;
+}
+</style>
+<script type="text/javascript">
+var socket;
+var username;
+
+function init() {
+	var host = "ws://IP-GOES-HERE:9000"; // SET THIS TO YOUR SERVER
+	username = $('username').value;
+	try {
+		socket = new WebSocket(host);
+		log('WebSocket - status '+socket.readyState);
+		socket.onopen    = function(msg) { 
+							   log("Welcome - status "+this.readyState); 
+							   socket.send('{"tag":"set_username", "username":"'+username+'"}');
+						   };
+		socket.onmessage = function(msg) {
+							   json = JSON.parse(msg.data);
+							   if(json.tag == 'message'){
+								   usr = json.username;
+								   msg = json.message; 
+								   log(usr+": "+msg); 
+							   } else if(json.tag == 'broadcast') {
+								   refresh(json.users); 
+							   }
+
+						   };
+		socket.onclose   = function(msg) { 
+							   log("Disconnected - status "+this.readyState); 
+						   };
+	}
+	catch(ex){ 
+		log(ex); 
+	}
+	$("login").style.display = 'none';
+	$("chatroom").style.display = 'block';
+	$("msg").focus();
+}
+
+function send(){
+	var txt,msg;
+	txt = $("msg");
+	msg = txt.value;
+	if(!msg) { 
+		alert("Message can not be empty"); 
+		return; 
+	}
+	txt.value="";
+	txt.focus();
+	try { 
+		socket.send('{"tag":"send_message", "msg":"'+msg+'"}'); 
+		log('me: '+msg); 
+	} catch(ex) { 
+		log(ex); 
+	}
+}
+function quit(){
+	if (socket != null) {
+		log("Goodbye!");
+		socket.close();
+		socket=null;
+		$("users").innerHTML = '';
+	}
+}
+
+function reconnect() {
+	quit();
+	init();
+}
+
+// Utilities
+function $(id){ return document.getElementById(id); }
+function refresh(users){ $("users").innerHTML = "<div>Online users:<div>"; for(var i in users){ $("users").innerHTML+="<div>"+users[i]+"</div>"; } }
+function log(msg){ $("log").innerHTML+="<br>"+msg; }
+function onkey(event){ if(event.keyCode==13){ send(); } }
+</script>
+
+</head>
+<body>
+<h3>WebSocket Tutorial 2: Multi User</h3>
+<div id="login">
+<input id="username" type="textbox"/>
+<button onclick="init()">Login</button>
+</div>
+<div id="chatroom">
+<div id="users"></div>
+<div id="log"></div>
+<input id="msg" type="textbox" onkeypress="onkey(event)"/>
+<button onclick="send()">Send</button>
+<button onclick="quit()">Quit</button>
+<button onclick="reconnect()">Reconnect</button>
+</div>
+</body>
+</html>

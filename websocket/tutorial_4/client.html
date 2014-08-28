@@ -1,0 +1,162 @@
+<html><head><title>WebSocket</title>
+<style type="text/css">
+html,body {
+	font:normal 0.9em arial,helvetica;
+}
+#users > div:not(:first-child) {
+	display:inline;
+	width:100%; 
+	border:1px solid #7F9DB9; 
+	background:F5F5DC;
+	margin:0 2 0 0;
+	padding: 0 2 0 2;
+	cursor: pointer;
+}
+#chatroom {
+	display:none;
+}
+#log {
+	width:600px; 
+	height:300px; 
+	border:1px solid #7F9DB9; 
+	margin:5 0 0 0;
+	overflow:auto;
+}
+#msg {
+	width:400px;
+}
+.selected {
+	border:1px solid #F0E68C; 
+	background:FFE4B5 !important;
+}
+</style>
+<script type="text/javascript">
+var socket;
+var username;
+
+function loadHistory(){
+	var xmlhttp;
+	if (window.XMLHttpRequest){
+	// code for IE7+, Firefox, Chrome, Opera, Safari
+		xmlhttp=new XMLHttpRequest();
+	} else {
+	// code for IE6, IE5
+		xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+	}
+	xmlhttp.onreadystatechange=function(){
+  	if (xmlhttp.readyState==4 && xmlhttp.status==200){
+   		json = JSON.parse(xmlhttp.responseText);
+	   		for(i=0; i<json.length; i++){
+				log(json[i].username+': '+json[i].message); 
+   	 		}
+  		}
+	}
+	xmlhttp.open("GET","history.json",true);
+	xmlhttp.send();
+}
+
+function init() {
+	var host = "ws://IP-GOES-HERE:9000"; // SET THIS TO YOUR SERVER
+	username = $('username').value;
+	try {
+		socket = new WebSocket(host);
+		log('WebSocket - status '+socket.readyState);
+		socket.onopen    = function(msg) { 
+							   clearLog();
+							   loadHistory();
+							   log("Welcome - status "+this.readyState); 
+							   socket.send('{"tag":"set_username", "username":"'+username+'"}');
+						   };
+		socket.onmessage = function(msg) {
+							   json = JSON.parse(msg.data);
+							   if(json.tag == 'message'){
+								   usr = json.username;
+								   msg = json.message; 
+								   if(json.whisper){
+									   log("[PRIVATE FROM "+usr+"]: "+msg);
+								   } else {
+									   log(usr+": "+msg);
+								   }
+							   } else if(json.tag == 'broadcast') {
+								   refresh(json.users); 
+							   }
+						   };
+		socket.onclose   = function(msg) { 
+							   log("Disconnected - status "+this.readyState); 
+						   };
+	}
+	catch(ex){ 
+		log(ex); 
+	}
+	$("login").style.display = 'none';
+	$("chatroom").style.display = 'block';
+	$("msg").focus();
+}
+
+function send(){
+	var txt,msg;
+	txt = $("msg");
+	msg = txt.value;
+	if(!msg) { 
+		alert("Message can not be empty"); 
+		return; 
+	}
+	txt.value="";
+	txt.focus();
+	try { 
+		whisperID = document.getElementsByClassName('selected')[0].id;
+		whisperName = document.getElementsByClassName('selected')[0].innerHTML;
+		socket.send('{"tag":"send_message", "to":"'+whisperID+'","msg":"'+msg+'"}'); 
+		if(whisperID == 'all'){
+			log('me: '+msg); 
+		} else {
+			log('[PRIVATE TO '+whisperName+']: '+msg); 
+		}
+	} catch(ex) { 
+		log(ex); 
+	}
+}
+function quit(){
+	if (socket != null) {
+		log("Goodbye!");
+		socket.close();
+		socket=null;
+		$("users").innerHTML = '';
+	}
+}
+
+function reconnect() {
+	quit();
+	init();
+}
+
+function chatTo(user){
+	document.getElementsByClassName('selected')[0].classList.remove('selected');
+	document.getElementById(user.id).classList.add('selected');
+}
+
+// Utilities
+function $(id){ return document.getElementById(id); }
+function refresh(users){ $("users").innerHTML = "<div>Online users:</div><div id=\"all\" class=\"selected\" onclick=\"chatTo(this)\">All</div>"; for(var i in users){ $("users").innerHTML+="<div id=\""+i+"\" onclick=\"chatTo(this)\">"+users[i]+"</div>"; } }
+function log(msg){ $("log").innerHTML+="<br>"+msg; }
+function clearLog(){ $("log").innerHTML=''; }
+function onkey(event){ if(event.keyCode==13){ send(); } }
+</script>
+
+</head>
+<body>
+<h3>WebSocket Tutorial 3: Chat with History</h3>
+<div id="login">
+<input id="username" type="textbox"/>
+<button onclick="init()">Login</button>
+</div>
+<div id="chatroom">
+<div id="users"></div>
+<div id="log"></div>
+<input id="msg" type="textbox" onkeypress="onkey(event)"/>
+<button onclick="send()">Send</button>
+<button onclick="quit()">Quit</button>
+<button onclick="reconnect()">Reconnect</button>
+</div>
+</body>
+</html>
